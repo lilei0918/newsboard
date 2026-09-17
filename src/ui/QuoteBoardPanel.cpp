@@ -181,18 +181,19 @@ void QuoteBoardPanel::paintEvent(QPaintEvent*) {
         const QRect rr(0, r.rect.top(), width(), r.rect.height());
 
         if (r.header) {
-            p.fillRect(rr, QColor("#0e0f12"));
+            p.fillRect(rr, QColor("#14161c"));   // 分组头比数据行略亮一点，形成“段”的感觉
             QFont hf = hdr;
             hf.setLetterSpacing(QFont::AbsoluteSpacing, 0.6);
             p.setFont(hf);
-            p.setPen(theme::accent());
-            p.drawText(rr.adjusted(kPadX, 0, -kPadX - 34, 0), Qt::AlignVCenter | Qt::AlignLeft,
+            // 分组标题是结构信息，用中性灰；琥珀只留给「选中/操作」
+            p.setPen(theme::text_dim());
+            p.drawText(rr.adjusted(kPadX, 0, -kPadX - 40, 0), Qt::AlignVCenter | Qt::AlignLeft,
                        r.group_title);
             // 分组右侧的条数：一眼知道这组有几个人，也方便判断有没有折叠
             p.setFont(num_small);
             p.setPen(theme::text_faint());
             p.drawText(rr.adjusted(kPadX, 0, -kPadX, 0), Qt::AlignVCenter | Qt::AlignRight,
-                       QString::number(r.group_count));
+                       QStringLiteral("%1").arg(r.group_count, 2, 10, QLatin1Char('0')));
             p.setPen(theme::border_dim());
             p.drawLine(rr.left(), rr.bottom(), rr.right(), rr.bottom());
             continue;

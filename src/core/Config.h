@@ -61,10 +61,13 @@ class Config {
     int quote_refresh_seconds() const { return quote_refresh_sec_; }
     bool compact_mode() const { return compact_mode_; }         // 紧凑行高（右栏一屏看更多）
     bool left_panel_visible() const { return left_visible_; }   // 左栏（筛选）是否显示
+    /// 新闻密度：0 紧凑 / 1 标准 / 2 舒适（决定行高，舒适档额外显示摘要首行）
+    int news_density() const { return news_density_; }
     bool sort_by_change() const { return sort_by_change_; }     // 组内按涨跌幅排序
     void set_quote_refresh_seconds(int s);
     void set_compact_mode(bool on) { compact_mode_ = on; }
     void set_left_panel_visible(bool on) { left_visible_ = on; }
+    void set_news_density(int d) { news_density_ = qBound(0, d, 2); }
     void set_sort_by_change(bool on) { sort_by_change_ = on; }
     QStringList highlight_keywords() const { return keywords_; }
     void set_highlight_keywords(const QStringList& k);
@@ -86,6 +89,7 @@ class Config {
     int quote_refresh_sec_ = 5;      // 默认 5 秒：批量接口下就是准实时
     bool compact_mode_ = true;
     bool left_visible_ = true;
+    int news_density_ = 1;
     bool sort_by_change_ = true;
     int retention_days_ = 14;
     bool ticker_paused_ = false;

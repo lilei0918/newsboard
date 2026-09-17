@@ -1,5 +1,6 @@
 #include "ui/NewsListPanel.h"
 
+#include "core/Config.h"
 #include "core/FeedCatalog.h"
 #include "ui/Theme.h"
 
@@ -15,9 +16,17 @@
 namespace nb {
 
 namespace {
-// 行高按“标题两行 + 元信息一行 + 上下留白”定：68px 在 1600 宽下大约一屏 12 条，
-// 既不像 60px 那样挤，也不会让阅读节奏散掉。
-constexpr int kRowHeight = 68;
+// 三档新闻密度：盯盘用紧凑（一屏看更多），读新闻用舒适（多一行摘要）。
+//   紧凑 54px = 标题两行 + 元信息
+//   标准 68px = 上面基础上多留白（默认）
+//   舒适 84px = 再多一行摘要
+int row_height_for(int density) {
+    switch (density) {
+        case 0: return 54;
+        case 2: return 84;
+        default: return 68;
+    }
+}
 constexpr int kPadX = 14;        // 左右留白（与左栏一致，视觉上同一条栅格）
 constexpr int kPadY = 10;
 
@@ -57,14 +66,42 @@ QString highlight(const QString& text, const QStringList& keywords) {
     return html;
 }
 
-/// 分类徽章做成药丸：底色淡、字色琥珀，比 "[分类]" 这种括号文字好看也更好扫读
+/// 分类徽章做成药丸。**中性灰**：琥珀要留给「操作 / 焦点 / 重要」，
+/// 如果每个分类都是琥珀，琥珀就不再代表任何东西了。
 QString category_chip_html(const QString& cat) {
     if (cat.isEmpty()) return {};
     const QString label = catalog::category_label(cat);
     return QStringLiteral(
-               "<span style='background-color:#2b2110;color:#e08b12;font-size:10px;"
+               "<span style='background-color:#1c1f24;color:#9ba2ab;font-size:10px;"
                "padding:1px 6px;border-radius:8px;'>%1</span>&nbsp; ")
         .arg(html_escape(label));
+}
+
+/// 突发专用药丸（红色）—— 只在真正突发时出现，所以从不泛滥
+QString breaking_chip_html() {
+    return QStringLiteral(
+        "<span style='background-color:#4a1512;color:#ff8b80;font-size:10px;font-weight:600;"
+        "padding:1px 6px;border-radius:8px;'>突发</span>&nbsp; ");
+}
+
+/// 三档重要度的配色：突发=红、重要=琥珀、普通=不强调（灰）
+struct TierStyle {
+    QColor bar;
+    QString title_color;
+    int title_weight;
+};
+TierStyle tier_style(NewsTier t, bool unread) {
+    switch (t) {
+        case NewsTier::Breaking:
+            return {QColor("#f04438"), unread ? QStringLiteral("#f7f8f9") : QStringLiteral("#b9bec4"),
+                    unread ? 600 : 500};
+        case NewsTier::Important:
+            return {QColor("#e08b12"), unread ? QStringLiteral("#eef0f2") : QStringLiteral("#aeb4bb"),
+                    unread ? 600 : 400};
+        default:
+            return {QColor("#4a4f57"), unread ? QStringLiteral("#e9eaec") : QStringLiteral("#a9afb7"),
+                    unread ? 500 : 400};
+    }
 }
 } // namespace
 
@@ -104,10 +141,18 @@ void NewsRowDelegate::paint(QPainter* p, const QStyleOptionViewItem& opt, const 
     else
         p->fillRect(r, unread ? QColor("#12141a") : theme::panel());
 
-    // 未读左侧竖条（Feedly/邮件客户端式）：3px，选中时同时是最左强调条
-    if (unread || selected)
-        p->fillRect(QRect(r.left(), r.top() + 8, 3, r.height() - 16),
-                    selected ? theme::accent() : theme::unread());
+    // 左侧竖条：颜色 = 重要度（突发红 / 重要琥珀 / 普通灰），未读才实心；
+    // 已读的重要条目留一条淡淡的痕迹，方便回头找。选中时统一用琥珀（琥珀=焦点）。
+    const TierStyle ts = tier_style(item.tier, unread);
+    if (selected) {
+        p->fillRect(QRect(r.left(), r.top() + 8, 3, r.height() - 16), theme::accent());
+    } else if (unread) {
+        p->fillRect(QRect(r.left(), r.top() + 8, 3, r.height() - 16), ts.bar);
+    } else if (item.tier != NewsTier::Normal) {
+        QColor faint = ts.bar;
+        faint.setAlpha(90);
+        p->fillRect(QRect(r.left(), r.top() + 8, 2, r.height() - 16), faint);
+    }
 
     // 底部细分隔线
     p->setPen(QPen(theme::border_dim()));
@@ -118,12 +163,13 @@ void NewsRowDelegate::paint(QPainter* p, const QStyleOptionViewItem& opt, const 
     if (!kws) kws = &empty_kw;
 
     // ── 标题（原文）+ 高亮，最多两行 ──────────────────────────────────────
+    const QString tier_chip = item.tier == NewsTier::Breaking ? breaking_chip_html() : QString();
     const QString title_html =
-        QStringLiteral("<div style='color:%1;font-size:%2px;line-height:18px;%3'>%4</div>")
-            .arg(unread ? QStringLiteral("#e9eaec") : QStringLiteral("#a9afb7"))
+        QStringLiteral("<div style='color:%1;font-size:%2px;line-height:18px;font-weight:%3'>%4</div>")
+            .arg(ts.title_color)
             .arg(theme::fs::title)
-            .arg(unread ? QStringLiteral("font-weight:600;") : QString())
-            .arg(category_chip_html(item.category) + highlight(item.title, *kws));
+            .arg(ts.title_weight)
+            .arg(tier_chip + category_chip_html(item.category) + highlight(item.title, *kws));
 
     QTextDocument doc;
     doc.setDefaultFont(theme::ui_font(theme::fs::title));
@@ -160,9 +206,26 @@ void NewsRowDelegate::paint(QPainter* p, const QStyleOptionViewItem& opt, const 
     p->drawText(QRect(r.right() - kPadX - rel_w - 4, meta_y, rel_w + 4, meta_fm.height()),
                 Qt::AlignRight | Qt::AlignVCenter, rel);
 
+    // 舒适档多一行摘要（标题两行 + 摘要一行 + 元信息一行）
+    const int density = Config::instance().news_density();
+    if (density == 2 && !item.summary.isEmpty()) {
+        QFont sum_font = theme::ui_font(theme::fs::small);
+        p->setFont(sum_font);
+        p->setPen(theme::text_faint());
+        const QFontMetrics sfm(sum_font);
+        const int sum_w = r.width() - kPadX * 2;
+        const int sum_y = r.top() + kPadY + 40;
+        p->drawText(QRect(r.left() + kPadX, sum_y, sum_w, sfm.height()),
+                    Qt::AlignLeft | Qt::AlignVCenter,
+                    sfm.elidedText(item.summary.simplified(), Qt::ElideRight, sum_w));
+    }
+
     QString meta = item.source;
+    if (!item.origin.isEmpty()) meta += QStringLiteral("  ·  ") + item.origin;
     if (!item.tickers.isEmpty())
         meta += QStringLiteral("  ·  ") + item.tickers.mid(0, 4).join(QStringLiteral("/"));
+    else if (!item.stocks.isEmpty())
+        meta += QStringLiteral("  ·  ") + item.stocks.mid(0, 3).join(QStringLiteral("/"));
     const int meta_w = qMax(20, r.width() - kPadX * 2 - rel_w - 14);
     p->setPen(theme::text_dim());
     p->drawText(QRect(r.left() + kPadX, meta_y, meta_w, meta_fm.height()),
@@ -174,7 +237,7 @@ void NewsRowDelegate::paint(QPainter* p, const QStyleOptionViewItem& opt, const 
 
 QSize NewsRowDelegate::sizeHint(const QStyleOptionViewItem& opt, const QModelIndex&) const {
     Q_UNUSED(opt);
-    return QSize(100, kRowHeight);
+    return QSize(100, row_height_for(Config::instance().news_density()));
 }
 
 // ── Panel ───────────────────────────────────────────────────────────────────
@@ -203,6 +266,33 @@ NewsListPanel::NewsListPanel(QWidget* parent) : QWidget(parent) {
     mark->setCursor(Qt::PointingHandCursor);
     connect(mark, &QPushButton::clicked, this, &NewsListPanel::mark_all_read_requested);
     hl->addWidget(mark);
+
+    // 密度三档：盯着盘的时候要“一屏看更多”，读新闻的时候要“多一行摘要”
+    {
+        auto* lb = new QLabel(QStringLiteral("密度"), head);
+        lb->setStyleSheet(QStringLiteral("color:#6c7278;font-size:10px;padding-left:6px;"));
+        hl->addWidget(lb);
+        density_group_ = new QButtonGroup(this);
+        density_group_->setExclusive(true);
+        const QStringList names{QStringLiteral("紧凑"), QStringLiteral("标准"), QStringLiteral("舒适")};
+        for (int i = 0; i < names.size(); ++i) {
+            auto* b = new QPushButton(names.at(i), head);
+            b->setObjectName("mini");
+            b->setCheckable(true);
+            b->setCursor(Qt::PointingHandCursor);
+            b->setFocusPolicy(Qt::NoFocus);
+            b->setChecked(Config::instance().news_density() == i);
+            density_group_->addButton(b, i);
+            hl->addWidget(b);
+        }
+        connect(density_group_, &QButtonGroup::idClicked, this, [this](int id) {
+            Config::instance().set_news_density(id);
+            Config::instance().save();
+            rebuild_rows();
+            list_->doItemsLayout();
+            emit density_changed(id);
+        });
+    }
     root->addWidget(head);
     auto* sep = new QFrame(this);
     sep->setObjectName("separator");
@@ -249,7 +339,7 @@ void NewsListPanel::rebuild_rows() {
     for (const auto& it : items_) {
         auto* row = new QListWidgetItem(list_);
         row->setData(Qt::UserRole, it.id);
-        row->setSizeHint(QSize(100, kRowHeight));
+        row->setSizeHint(QSize(100, row_height_for(Config::instance().news_density())));
         row->setToolTip(it.title);
     }
 }

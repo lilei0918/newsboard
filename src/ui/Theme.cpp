@@ -53,7 +53,8 @@ QSplitter::handle:hover { background: #e08b12; }
 
 /* ── 标题：面板标题用中性灰，区块标题用琥珀，都靠字重与字距拉开层级 ───── */
 QLabel#panelTitle { color: #9ba2ab; font-size: 12px; font-weight: 600; letter-spacing: 0.5px; padding: 10px 10px 8px 10px; }
-QLabel#sectionTitle { color: #e08b12; font-size: 11px; font-weight: 700; letter-spacing: 0.6px; padding: 10px 0 2px 0; }
+/* 区块标题是「结构」，不是「操作」—— 用中性灰，把琥珀留给按钮/选中/焦点 */
+QLabel#sectionTitle { color: #8f959d; font-size: 11px; font-weight: 600; letter-spacing: 0.6px; padding: 10px 0 2px 0; }
 QLabel#hint { color: #6c7278; font-size: 10px; padding: 0 0 2px 0; }
 
 /* ── 滚动条：细、无轨道、悬停才明显 ─────────────────────────────────────── */

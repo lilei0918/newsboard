@@ -92,8 +92,12 @@ void TickerBar::paintEvent(QPaintEvent*) {
         const Cell& c = cells_.at(i);
         if (c.rect.right() < 0 || c.rect.left() > width()) continue;
 
-        // 悬停：给这一格一个淡背景，说明“可点开 K 线”
-        if (i == hover_) p.fillRect(c.rect.adjusted(2, 4, -2, -4), theme::hover());
+        // 悬停：淡背景 + 底部琥珀下划线（琥珀=焦点），同时（在事件里）暂停滚动
+        if (i == hover_) {
+            p.fillRect(c.rect.adjusted(0, 3, -1, -3), theme::hover());
+            p.fillRect(QRect(c.rect.left() + 1, c.rect.bottom() - 2, c.rect.width() - 3, 2),
+                       theme::accent());
+        }
 
         // 三段排布：名称（正文色）· 代码（弱色）· 现价（亮色）· 涨跌幅（涨跌色）
         int x = c.rect.left() + 10;
@@ -141,6 +145,17 @@ void TickerBar::mousePressEvent(QMouseEvent* e) {
             return;
         }
     }
+}
+
+void TickerBar::enterEvent(QEnterEvent* e) {
+    // 鼠标进来就停下：想看哪一格就停在哪一格，别边看边跑
+    if (timer_ && timer_->isActive() && !paused_) timer_->stop();
+    QWidget::enterEvent(e);
+}
+
+void TickerBar::leaveEvent(QEvent* e) {
+    if (timer_ && !timer_->isActive() && !paused_) timer_->start();
+    QWidget::leaveEvent(e);
 }
 
 void TickerBar::mouseMoveEvent(QMouseEvent* e) {

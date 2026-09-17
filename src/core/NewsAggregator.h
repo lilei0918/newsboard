@@ -84,6 +84,10 @@ class NewsAggregator : public QObject {
     void mark_all_read();
 
     /// 过滤后的视图（分类为空 = 全部；源集合为空 = 全部；关键词为空 = 不过滤）
+    /// 多源共振热点：默认看最近 6 小时，同题（词集相似度 ≥ 0.42）且时间相近的条目聚成一簇，
+    /// 只保留「至少 2 个不同来源」的簇，按来源数 + 新鲜度排序。
+    QVector<HotCluster> hot_clusters(int max = 3, int window_minutes = 360) const;
+
     QVector<NewsItem> filtered(const QString& category, const QSet<QString>& source_ids,
                                const QString& keyword) const;
 

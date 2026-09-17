@@ -26,9 +26,11 @@ set(SOURCES
     src/core/NewsAggregator.cpp
     src/core/PyEnv.cpp
     src/core/QuoteService.cpp
+    src/core/SymbolMatch.cpp
     src/ui/FilterPanel.cpp
     src/ui/NewsListPanel.cpp
     src/ui/Overlays.cpp
+    src/ui/PulseBar.cpp
     src/ui/QuoteBoardPanel.cpp
     src/ui/TickerBar.cpp
     src/ui/Theme.cpp
@@ -42,9 +44,11 @@ set(HEADERS
     src/core/NewsAggregator.h
     src/core/PyEnv.h
     src/core/QuoteService.h
+    src/core/SymbolMatch.h
     src/ui/FilterPanel.h
     src/ui/NewsListPanel.h
     src/ui/Overlays.h
+    src/ui/PulseBar.h
     src/ui/QuoteBoardPanel.h
     src/ui/TickerBar.h
     src/ui/Theme.h

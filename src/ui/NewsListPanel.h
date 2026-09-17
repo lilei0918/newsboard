@@ -3,6 +3,7 @@
 
 #include "core/Models.h"
 
+#include <QButtonGroup>
 #include <QHash>
 #include <QLabel>
 #include <QListWidget>
@@ -20,10 +21,19 @@ class NewsListPanel : public QWidget {
     void set_keywords(const QStringList& keywords);
     int unread_count() const;
     int item_count() const { return items_.size(); }
+    /// 当前列表里正在显示的条目（供自动化截图核对用）
+    QVector<NewsItem> items_shown() const { return items_; }
+    /// 按 id 找条目（热点条点击后要打开对应的新闻）
+    bool item_by_id(const QString& id, NewsItem* out) const {
+        if (!by_id_.contains(id)) return false;
+        if (out) *out = by_id_.value(id);
+        return true;
+    }
 
   signals:
     void item_activated(const NewsItem& item);
     void mark_all_read_requested();
+    void density_changed(int density);   // 0 紧凑 / 1 标准 / 2 舒适
 
   private:
     void rebuild_rows();
@@ -32,6 +42,7 @@ class NewsListPanel : public QWidget {
 
     QListWidget* list_ = nullptr;
     QLabel* head_count_ = nullptr;
+    QButtonGroup* density_group_ = nullptr;
     QVector<NewsItem> items_;
     QHash<QString, NewsItem> by_id_;
     QStringList keywords_;

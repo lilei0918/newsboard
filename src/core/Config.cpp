@@ -167,6 +167,7 @@ void Config::load() {
         quote_refresh_sec_ = root.value("quote_refresh_seconds").toInt(5);
         compact_mode_ = root.value("compact_mode").toBool(true);
         left_visible_ = root.value("left_panel_visible").toBool(true);
+        news_density_ = root.value("news_density").toInt(1);
         sort_by_change_ = root.value("sort_by_change").toBool(true);
         retention_days_ = root.value("news_retention_days").toInt(14);
         ticker_paused_ = root.value("ticker_paused").toBool(false);
@@ -216,6 +217,7 @@ void Config::save() const {
     root["quote_refresh_seconds"] = quote_refresh_sec_;
     root["compact_mode"] = compact_mode_;
     root["left_panel_visible"] = left_visible_;
+    root["news_density"] = news_density_;
     root["sort_by_change"] = sort_by_change_;
     root["news_retention_days"] = retention_days_;
     root["ticker_paused"] = ticker_paused_;

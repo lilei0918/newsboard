@@ -48,6 +48,9 @@ class QuoteService : public QObject {
                        std::function<void(bool, QVector<Bar>)> cb);
 
     QVector<Quote> quotes() const { return quotes_; }
+
+    /// 最近 5 分钟异动榜（用 5 秒一轮的价格历史算，最多 20 分钟窗口）
+    QVector<Mover> movers() const { return movers_; }
     Quote quote_for(const QString& symbol) const;
     bool busy() const { return quotes_in_flight_; }
     qint64 last_ok_ms() const { return last_ok_ms_; }
@@ -61,6 +64,7 @@ class QuoteService : public QObject {
 
   signals:
     void quotes_updated();
+    void movers_updated();
     void history_ready(const QString& symbol, QVector<Bar> bars);
     void status_changed();
 
@@ -99,10 +103,18 @@ class QuoteService : public QObject {
     int consecutive_failures_ = 0;
     QString last_error_;
     QVector<Quote> quotes_;
+    /// 每个标的的滚动价格序列（秒 → 价），只保留最近 20 分钟
+    QHash<QString, QVector<QPair<qint64, double>>> history_;
+    QVector<Mover> movers_;
+    void recompute_movers();
     /// 迷你走势按标的缓存。报价与走势是两个独立进程，谁先回来不确定，
     /// 所以走势先到就先存这里，报价解析时再合并 —— 避免冷启动丢掉走势。
     QHash<QString, QVector<double>> spark_by_symbol_;
     QHash<QString, QVector<Bar>> history_cache_;
+    /// 异动计算：窗口 5 分钟、阈值 0.25%、历史保留 20 分钟
+    static constexpr qint64 kMoverWindowSec = 300;
+    static constexpr qint64 kHistorySec = 1200;
+    static constexpr double kMoverThreshold = 0.25;
     static constexpr int kMinGapMs = 1500;              // 两次刷新之间的硬下限
     static constexpr int kRateLimitCooldownSec = 120;   // 429 → 冷却 2 分钟
     static constexpr int kFailureCooldownSec = 60;      // 连续失败 → 退避 1 分钟

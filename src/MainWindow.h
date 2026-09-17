@@ -19,6 +19,7 @@ class TickerBar;
 class FilterPanel;
 class NewsListPanel;
 class QuoteBoardView;
+class PulseBar;
 class NewsDetailOverlay;
 class ChartOverlay;
 
@@ -27,6 +28,11 @@ class MainWindow : public QMainWindow {
   public:
     explicit MainWindow(QWidget* parent = nullptr);
     ~MainWindow() override;
+
+    /// 仅用于自动化截图核对（NB_SHOT_OVERLAY）：打开中栏第一条资讯 / 指定标的的 K 线浮层
+    void debug_open_first_news();
+    void debug_open_chart(const QString& symbol);
+    int debug_item_count() const;
 
   protected:
     void resizeEvent(QResizeEvent* e) override;
@@ -45,6 +51,7 @@ class MainWindow : public QMainWindow {
     void layout_overlays();
     void open_news(const NewsItem& item);
     void open_chart(const QString& symbol);
+
     /// 左栏（筛选）显示/隐藏；隐藏时把宽度让给中右两栏，再次显示时恢复原宽度
     void set_left_panel_visible(bool on);
 
@@ -53,6 +60,7 @@ class MainWindow : public QMainWindow {
     PyEnv* pyenv_ = nullptr;
 
     TickerBar* ticker_ = nullptr;
+    PulseBar* pulse_ = nullptr;
     QSplitter* splitter_ = nullptr;
     FilterPanel* filter_ = nullptr;
     NewsListPanel* list_ = nullptr;
@@ -62,6 +70,7 @@ class MainWindow : public QMainWindow {
 
     QPushButton* left_toggle_ = nullptr;   // 状态栏里的「隐藏/显示筛选栏」
     QList<int> splitter_saved_sizes_;      // 隐藏前记录的三栏宽度
+    void refresh_hot_clusters();
     QLabel* status_news_ = nullptr;
     QLabel* status_quotes_ = nullptr;
     QLabel* status_error_ = nullptr;

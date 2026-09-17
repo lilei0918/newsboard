@@ -48,6 +48,20 @@ int main(int argc, char** argv) {
 
     // 截图模式：NB_SHOT=/tmp/x.png [NB_SHOT_DELAY=9000] ./run.sh
     // 等界面把数据画出来之后抓一张窗口图再退出。用于排查界面问题（比如列重叠）。
+    // 浮层截图模式：NB_SHOT_OVERLAY=news|chart 时先打开浮层再截图（自动化核对界面用）
+    const QByteArray overlay = qgetenv("NB_SHOT_OVERLAY");
+    if (!overlay.isEmpty()) {
+        const int at = qEnvironmentVariableIsSet("NB_SHOT_OVERLAY_DELAY")
+                           ? qgetenv("NB_SHOT_OVERLAY_DELAY").toInt()
+                           : 9000;
+        QTimer::singleShot(at, &w, [&w, overlay]() {
+            if (overlay == QByteArrayLiteral("news"))
+                w.debug_open_first_news();
+            else
+                w.debug_open_chart(QString::fromUtf8(overlay));
+        });
+    }
+
     const QByteArray shot = qgetenv("NB_SHOT");
     if (!shot.isEmpty()) {
         const int delay = qEnvironmentVariableIsSet("NB_SHOT_DELAY")

@@ -9,6 +9,10 @@
 namespace nb {
 
 /// 一条资讯。title/summary 一律保留原文（不翻译），界面文案才是中文。
+/// 重要度分级：让「突发 / 重要 / 普通」在列表里自然分层。
+/// 中文源（财联社）用上游接口自己的 level 字段，英文源用透明关键词规则 —— 不是猜的。
+enum class NewsTier { Normal = 0, Important = 1, Breaking = 2 };
+
 struct NewsItem {
     QString id;         // 稳定唯一键（源 id + 条目 guid/link 的指纹）
     QString title;      // 标题（原文）
@@ -20,7 +24,12 @@ struct NewsItem {
     QString lang;       // "en" / "zh" / ...
     qint64 ts = 0;      // 发布/更新时间（UTC 秒）
     bool read = false;
-    QStringList tickers;  // 财联社等源会带关联标的
+    QStringList tickers;  // 关联标的（财联社 stock_list / 标题里命中的自选代码）
+
+    // ── 视觉层级用（不改数据口径，只影响怎么显示）──
+    NewsTier tier = NewsTier::Normal;  // 突发 / 重要 / 普通
+    QString origin;                    // 标题尾部的媒体/机构署名（已从标题里摘出来）
+    QStringList stocks;                // 财联社 stock_list：关联个股名（A 股，展示用）
 
     bool is_valid() const { return !title.isEmpty() && ts > 0; }
 };
@@ -68,6 +77,27 @@ struct Quote {
     QString sourceLabel;     // "Yahoo" / "新浪实时"
     bool delayed = false;    // true = 已知源端延迟（不是本程序的刷新问题）
     QString delayNote;       // 延迟原因（悬浮提示里显示）
+};
+
+/// 热点簇：同一件事被多个源在相近时间报道时聚成一簇。
+/// 这是「多源共振」，不是「编辑推荐」——所以界面上写「N 源 · M 分钟」而不是「重磅」。
+struct HotCluster {
+    QString title;          // 代表标题（最新、且最有信息量的那条）
+    QStringList sources;    // 参与报道的源（去重）
+    int item_count = 0;     // 命中的条目数
+    qint64 newest_ts = 0;
+    QString item_id;        // 代表条目的 id（点开看详情）
+    QStringList symbols;    // 涉及的自选标的
+};
+
+/// 异动条目：用我们自己的 5 秒行情算出来的「最近在动」的标的。
+/// 注意口径：这不是「新闻推动了市场」，而是「市场正在动」—— 两者不要混为一谈。
+struct Mover {
+    QString symbol;
+    QString label;        // 中文别名（回退代码）
+    double pct5 = 0;      // 最近 5 分钟涨跌幅（%）
+    double pct = 0;       // 当日（盘中级）涨跌幅（%）
+    int span_sec = 0;     // 实际用于计算的跨度（秒），说明数据够不够
 };
 
 /// 自选分组：一个分组 = 看板里的一段

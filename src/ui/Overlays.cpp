@@ -48,11 +48,22 @@ NewsDetailOverlay::NewsDetailOverlay(QWidget* parent) : QFrame(parent) {
     meta_->setStyleSheet(QStringLiteral("color:#9ba2ab;font-size:11px;"));
     root->addWidget(meta_);
 
+    // 相关标的：命中的自选标的 + 实时涨跌幅，点一下直接看 K 线。
+    // 这是「新闻 → 标的」的闭环：读到某条消息，顺手就知道相关标的现在在怎么走。
+    related_ = new QLabel(this);
+    related_->setTextFormat(Qt::RichText);
+    related_->setOpenExternalLinks(false);
+    related_->setStyleSheet(QStringLiteral("color:#9ba2ab;font-size:11px;"));
+    connect(related_, &QLabel::linkActivated, this, [this](const QString& href) {
+        if (href.startsWith(QStringLiteral("sym:"))) emit symbol_activated(href.mid(4));
+    });
+
     body_ = new QTextBrowser(this);
     body_->setOpenExternalLinks(false);
     body_->setStyleSheet(QStringLiteral("QTextBrowser{background:#16181c;border:1px solid #24272d;border-radius:6px;"
                                         "border-radius:4px;padding:10px;color:#d8d8d8;}"));
     root->addWidget(body_, 1);
+    root->addWidget(related_);
 
     auto* btns = new QHBoxLayout();
     open_btn_ = new QPushButton(QStringLiteral("在浏览器打开原文"), this);
@@ -77,18 +88,65 @@ NewsDetailOverlay::NewsDetailOverlay(QWidget* parent) : QFrame(parent) {
     root->addLayout(btns);
 }
 
+void NewsDetailOverlay::set_quotes(const QVector<Quote>& quotes) {
+    quotes_ = quotes;
+    if (isVisible() && !current_.id.isEmpty()) render_related();
+}
+
+void NewsDetailOverlay::render_related() {
+    if (!related_) return;
+    QStringList items;
+    // 一条行业级新闻可能命中十几个标的 —— 浮层里只列前 6 个，其余折叠成「+N」
+    const int kMaxShown = 6;
+    const auto tickers = current_.tickers.mid(0, kMaxShown);
+    for (const auto& sym : tickers) {
+        const Quote* q = nullptr;
+        for (const auto& x : quotes_) {
+            if (x.symbol == sym) { q = &x; break; }
+        }
+        const QString name = q && !q->alias.isEmpty() ? q->alias : sym;
+        if (q && q->ok) {
+            const QString color = q->changePct > 0 ? QStringLiteral("#f04438")
+                                : q->changePct < 0 ? QStringLiteral("#12b76a")
+                                                   : QStringLiteral("#9ba2ab");
+            items << QStringLiteral("<a href='sym:%1' style='color:#c9ced5;text-decoration:none;'>%2 %3</a>"
+                                    "&nbsp;<span style='color:%4;'>%5%6%</span>")
+                         .arg(sym, name, sym,
+                              color,
+                              q->changePct >= 0 ? QStringLiteral("+") : QString(),
+                              QString::number(q->changePct, 'f', 2));
+        } else {
+            items << QStringLiteral("<span style='color:#9ba2ab;'>%1 %2</span>").arg(name, sym);
+        }
+    }
+    if (current_.tickers.size() > kMaxShown) {
+        items << QStringLiteral("<span style='color:#6c7278;'>+%1</span>")
+                     .arg(current_.tickers.size() - kMaxShown);
+    }
+    if (!current_.stocks.isEmpty()) {
+        items << QStringLiteral("<span style='color:#6c7278;'>A 股关联：%1</span>")
+                     .arg(current_.stocks.mid(0, 6).join(QStringLiteral("、")));
+    }
+    related_->setText(items.isEmpty()
+                          ? QString()
+                          : QStringLiteral("<span style='color:#6c7278;'>相关标的</span>&nbsp;&nbsp;") +
+                                items.join(QStringLiteral("&nbsp;&nbsp;&nbsp;")));
+}
+
 void NewsDetailOverlay::show_item(const NewsItem& item) {
     current_ = item;
     title_->setText(item.title);
 
     const QDateTime dt = QDateTime::fromSecsSinceEpoch(item.ts);
     QString meta = QStringLiteral("%1  ·  %2").arg(item.source, dt.toString(QStringLiteral("yyyy-MM-dd HH:mm")));
-    if (!item.tickers.isEmpty()) meta += QStringLiteral("  ·  关联标的：") + item.tickers.join(QStringLiteral("、"));
+    if (!item.origin.isEmpty()) meta += QStringLiteral("  ·  ") + item.origin;
     meta_->setText(meta);
 
     QString body = item.summary;
     if (body.isEmpty()) body = QStringLiteral("（该源未提供摘要，点下方按钮打开原文）");
     body_->setPlainText(body);
+
+    render_related();          // 相关标的 + 实时涨跌幅
 
     copy_btn_->setText(QStringLiteral("复制标题"));
     show();

@@ -339,6 +339,82 @@ void QuoteService::refresh_now() {
     }
 }
 
+void QuoteService::recompute_movers() {
+    const qint64 now_s = QDateTime::currentSecsSinceEpoch();
+    QVector<Mover> out;
+    out.reserve(quotes_.size());
+
+    QHash<QString, const Quote*> by_sym;
+    for (const auto& q : quotes_) by_sym.insert(q.symbol, &q);
+
+    for (auto it = history_.begin(); it != history_.end(); ++it) {
+        const auto& h = it.value();
+        if (h.size() < 2) continue;
+
+        // 找 5 分钟前的那个点；跨度不足 90 秒的直接跳过（数据还没攒够，算出来是噪音）
+        const qint64 target = now_s - kMoverWindowSec;
+        int idx = -1;
+        for (int i = h.size() - 1; i >= 0; --i) {
+            if (h.at(i).first <= target) { idx = i; break; }
+        }
+        if (idx < 0) idx = 0;
+        const qint64 span = h.last().first - h.at(idx).first;
+        if (span < 90) continue;
+        const double base = h.at(idx).second;
+        const double last = h.last().second;
+        if (base <= 0 || last <= 0) continue;
+
+        Mover m;
+        m.symbol = it.key();
+        m.pct5 = (last - base) / base * 100.0;
+        m.span_sec = int(span);
+        const Quote* q = by_sym.value(it.key(), nullptr);
+        if (q) {
+            m.pct = q->changePct;
+            m.label = q->alias.isEmpty() ? q->symbol : q->alias;
+        } else {
+            m.label = it.key();
+        }
+        out.append(m);
+    }
+
+    std::sort(out.begin(), out.end(), [](const Mover& a, const Mover& b) {
+        return qAbs(a.pct5) > qAbs(b.pct5);
+    });
+    // 阈值：5 分钟动了 0.25% 以上才算「异动」，否则满屏都是 0.0x% 的噪音
+    QVector<Mover> keep;
+    for (const auto& m : out) {
+        if (qAbs(m.pct5) < kMoverThreshold) continue;
+        keep.append(m);
+        if (keep.size() >= 8) break;
+    }
+    // 内容变了才发信号，避免每 5 秒都让界面重排
+    bool changed = keep.size() != movers_.size();
+    if (!changed) {
+        for (int i = 0; i < keep.size(); ++i) {
+            if (keep.at(i).symbol != movers_.at(i).symbol ||
+                qAbs(keep.at(i).pct5 - movers_.at(i).pct5) > 0.02) {
+                changed = true;
+                break;
+            }
+        }
+    }
+    movers_ = keep;
+    if (changed) {
+        if (movers_.isEmpty()) {
+            log_status(QStringLiteral("异动榜：最近 5 分钟无标的异动（阈值 %1%）").arg(kMoverThreshold));
+        } else {
+            QStringList brief;
+            for (int i = 0; i < qMin(4, int(movers_.size())); ++i) {
+                const Mover& m = movers_.at(i);
+                brief << QStringLiteral("%1 %2%").arg(m.label).arg(m.pct5, 0, 'f', 2);
+            }
+            log_status(QStringLiteral("异动榜：%1").arg(brief.join(QStringLiteral(" / "))));
+        }
+        emit movers_updated();
+    }
+}
+
 void QuoteService::refresh_sparklines() {
     if (spark_busy_) return;
     if (in_cooldown()) return;                 // 与报价共用冷却：限流期间不发请求
@@ -498,6 +574,24 @@ bool QuoteService::parse_quotes(const QJsonValue& data) {
     }
 
     quotes_ = out;
+
+    // 顺带维护「最近 20 分钟」的价格序列，用来算异动（不需要额外请求，纯本地计算）
+    const qint64 now_s = QDateTime::currentSecsSinceEpoch();
+    for (const auto& q : quotes_) {
+        if (!q.ok || q.price <= 0) continue;
+        auto& h = history_[q.symbol];
+        if (!h.isEmpty() && h.last().first == now_s) continue;   // 同一秒不重复记
+        h.append({now_s, q.price});
+        while (!h.isEmpty() && now_s - h.first().first > kHistorySec) h.removeFirst();
+    }
+    for (auto it = history_.begin(); it != history_.end();) {
+        if (now_s - (it.value().isEmpty() ? now_s : it.value().last().first) > kHistorySec * 2)
+            it = history_.erase(it);
+        else
+            ++it;
+    }
+    recompute_movers();
+
     return !out.isEmpty();
 }
 

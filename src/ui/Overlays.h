@@ -19,21 +19,27 @@ class NewsDetailOverlay : public QFrame {
     explicit NewsDetailOverlay(QWidget* parent = nullptr);
 
     void show_item(const NewsItem& item);
+    void set_quotes(const QVector<Quote>& quotes);   // 相关标的显示实时涨跌幅用
     void hide_overlay();
 
   signals:
     void closed();
+    void symbol_activated(const QString& symbol);    // 点「相关标的」→ 打开 K 线
 
   protected:
     void keyPressEvent(QKeyEvent* e) override;
 
   private:
+    void render_related();   // 画「相关标的 + 实时涨跌幅」
+
     QLabel* title_ = nullptr;
     QLabel* meta_ = nullptr;
     QTextBrowser* body_ = nullptr;
+    QLabel* related_ = nullptr;
     QPushButton* open_btn_ = nullptr;
     QPushButton* copy_btn_ = nullptr;
     NewsItem current_;
+    QVector<Quote> quotes_;
 };
 
 /// 行情图表浮层（右栏上方，画历史 K 线 + 区间切换）
