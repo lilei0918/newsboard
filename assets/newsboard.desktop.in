@@ -1,0 +1,16 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=NewsBoard
+Name[zh_CN]=NewsBoard 资讯行情看板
+GenericName=News & Market Board
+GenericName[zh_CN]=资讯与行情看板
+Comment=单页资讯 + 行情看板（RSS + yfinance，自带运行环境）
+Comment[en]=Single-page news and market data board
+Exec=@ROOT@/run.sh
+Icon=@ROOT@/assets/newsboard.svg
+Terminal=false
+StartupNotify=false
+StartupWMClass=NewsBoard
+Categories=Finance;News;Office;
+Keywords=news;newsboard;market;quotes;finance;rss;stocks;资讯;行情;看板;新闻;股票;
